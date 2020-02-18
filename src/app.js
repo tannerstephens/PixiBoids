@@ -13,8 +13,8 @@ Set.prototype.union = function(setB) {
 const app = new PIXI.Application();
 
 const vel = 3;
-const numTris = 100;
-const scale = 0.5;
+const numTris = 500;
+const scale = 0.75;
 const gridSize = 100;
 const awareRadius = 200;
 const gridWidth = Math.ceil(window.innerWidth/gridSize);
@@ -78,9 +78,7 @@ const main = () => {
 
 
     tris.forEach((tri, i) => {
-        if (i == 0) {
-            tri.tint += 0xff0000
-        }
+        tri.tint = 0xffffff * Math.random();
         tri.x = Math.random() * window.innerWidth;
         tri.y = Math.random() * window.innerHeight;
         tri.anchor.set(0.5);
@@ -106,7 +104,8 @@ const main = () => {
 
             const nearBoids = awareGrids(tri).filter((t2) => dist(tri, t2) < awareRadius);
 
-
+            tri.tint = nearBoids.reduce((prev, cur) => prev + cur.tint, tri.tint) / (nearBoids.length + 1);
+            
             const align = nearBoids.reduce((prev, cur) => {
                 return prev += cur.rotation 
             }, 0) / nearBoids.length;

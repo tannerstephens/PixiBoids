@@ -1,7 +1,8 @@
-import {app, main} from './app';
+import Boids from './refactor'
 
 document.addEventListener("DOMContentLoaded", () => {
-    document.body.appendChild(app.view);
+    const boids = new Boids();
+
+    document.body.appendChild(boids.app.view);
     document.body.style.margin = 0;
-    main();
 })
