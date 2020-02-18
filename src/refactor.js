@@ -5,7 +5,7 @@ Number.prototype.mod = function(n) {
 };
 
 class Boids {
-  constructor(boidCount=1000, boidScale=0.5, visualRadius=30, gridSize=100, velocity=3) {
+  constructor(boidCount=500, boidScale=0.5, visualRadius=30, gridSize=30, velocity=3) {
     this.app = new PIXI.Application();
 
     this.boidCount = boidCount;
