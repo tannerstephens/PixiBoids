@@ -15,8 +15,8 @@
     "webpack-dev-server": "^3.10.3"
   },
   "dependencies": {
-    "heap": "^0.2.6",
-    "pixi.js": "^5.2.1"
+    "pixi.js": "^5.2.1",
+    "victor": "^1.1.0"
   },
   "scripts": {
     "production": "webpack --mode production --config webpack.config.prod.js",

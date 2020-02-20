@@ -1,152 +1,138 @@
 import * as PIXI from 'pixi.js';
 
 Number.prototype.mod = function(n) {
-    return ((this%n)+n)%n;
+  return ((this%n)+n)%n;
 };
 
-Set.prototype.union = function(setB) {
-    for (let elem of setB) {
-        this.add(elem);
+class Boids {
+  constructor(boidCount=500, boidScale=0.5, visualRadius=30, gridSize=30, velocity=3) {
+    this.app = new PIXI.Application();
+
+    this.boidCount = boidCount;
+    this.boidScale = boidScale;
+    this.visualRadius = visualRadius**2;
+    this.visRadius = visualRadius;
+    this.gridSize = gridSize;
+    this.velocity = velocity;
+
+    this.app.renderer.view.style.position = "absolute";
+    this.app.renderer.view.style.display = "block";
+    this.app.renderer.autoResize = true;
+    this.app.renderer.resize(window.innerWidth, window.innerHeight);
+
+    this.positionalGrid = this.createPositionalGrid();
+
+    this.boidTexture = this.createTriangleTexture();
+    this.boids = [...new Array(boidCount)].map(() => this.createBoid());
+    this.boids[0].tint = 0xff0000;
+
+    this.app.ticker.add(() => this.tick());
+  }
+
+  createTriangleTexture() {
+    const texture = new PIXI.Graphics();
+
+    texture.beginFill(0xffffff);
+    texture.drawPolygon([0,0,30,10,0,20,5,10]);
+    texture.endFill();
+
+    return this.app.renderer.generateTexture(texture);
+  }
+
+  createBoid() {
+    const boid = new PIXI.Sprite(this.boidTexture);
+
+    boid.x = Math.random() * window.innerWidth;
+    boid.y = Math.random() * window.innerHeight;
+    boid.anchor.set(0.5);
+    boid.rotation = Math.random() * 2;
+    boid.vx = Math.cos(boid.rotation);
+    boid.vy = Math.sin(boid.rotation);
+    boid.scale.set(this.boidScale);
+
+    boid.positionalGrid = this.getPositionalGrid(boid.x, boid.y);
+    boid.positionalGrid.add(boid);
+
+    this.app.stage.addChild(boid);
+
+    return boid;
+  }
+
+  createPositionalGrid() {
+    const width = Math.ceil(window.innerWidth / this.gridSize);
+    const height = Math.ceil(window.innerHeight / this.gridSize);
+
+    return [...new Array(width)].map(() => [...new Array(height)].map(() => new Set()));
+  }
+
+  getPositionalGrid(x, y) {
+    const gridX = Math.floor(x / this.gridSize);
+    const gridY = Math.floor(y / this.gridSize);
+
+    return this.positionalGrid[gridX][gridY];
+  }
+
+  updateBoidPositionalGrid(boid) {
+    const newPositionalGrid = this.getPositionalGrid(boid.x, boid.y);
+
+    if (newPositionalGrid != boid.positionalGrid) {
+      boid.positionalGrid.delete(boid);
+      newPositionalGrid.add(boid);
+      boid.positionalGrid = newPositionalGrid;
     }
-};
+  }
 
-const app = new PIXI.Application();
+  getSearchGrids(boid) {
+    const width = Math.ceil(window.innerWidth / this.gridSize);
+    const height = Math.ceil(window.innerHeight / this.gridSize);
 
-const vel = 3;
-const numTris = 500;
-const scale = 0.75;
-const gridSize = 100;
-const awareRadius = 200;
-const gridWidth = Math.ceil(window.innerWidth/gridSize);
-const gridHeight = Math.ceil(window.innerHeight/gridSize);
+    const minX = Math.floor((boid.x - this.visRadius)/this.gridSize);
+    const minY = Math.floor((boid.y - this.visRadius)/this.gridSize);
+    const maxX = Math.floor((boid.x + this.visRadius)/this.gridSize);
+    const maxY = Math.floor((boid.y + this.visRadius)/this.gridSize);
 
-app.renderer.view.style.position = "absolute";
-app.renderer.view.style.display = "block";
-app.renderer.autoResize = true;
-app.renderer.resize(window.innerWidth, window.innerHeight);
+    const grids = [];
+    let x, y;
 
-const main = () => {
-    const createTriangle = () => {
-        const tri = new PIXI.Graphics();
-
-        tri.beginFill(0xffffff);
-        tri.lineStyle(0, 0xffffff);
-        tri.drawPolygon([0,0,10,30,20,0,10,5]);
-        tri.endFill();
-
-        return new PIXI.Sprite(app.renderer.generateTexture(tri));
+    for (x=minX; x <= maxX; x++) {
+      for (y=minY; y <= maxY; y++) {
+        grids.push(this.positionalGrid[x.mod(width)][y.mod(height)]);
+      }
     }
 
-    const getGridCoords = (tri) => {
-        return {
-            x: Math.floor(tri.x/gridSize),
-            y: Math.floor(tri.y/gridSize)
-        };
-    };
+    return grids;
+  }
 
-    const getGrid = (coords) => {
-        return grid[coords.x][coords.y];
-    };
+  distance(boidA, boidB) {
+    const dx = Math.abs(boidA.x - boidB.x);
+    const dy = Math.abs(boidA.y - boidB.y);
 
-    const awareGrids = (tri) => {
-        const delta = [-awareRadius, 0, awareRadius];
+    return Math.min(dx, window.innerWidth - dx)**2 + Math.min(dy, window.innerHeight - dy)**2;
+  }
 
-        let result = new Set();
+  updateRotation(boid) {
+    boid.rotation = Math.atan2(boid.vy, boid.vx);
+  }
 
-        const seen = [];
+  tick() {
+    this.boids.forEach((boid, i) => {
+      this.updateRotation(boid);
 
-        delta.forEach((dx) => {
-            delta.forEach((dy) => {
-                const coords = getGridCoords({
-                    x: Math.floor((tri.x + dx)).mod(window.innerWidth),
-                    y: Math.floor((tri.y + dy)).mod(window.innerHeight)
-                });
+      boid.x = (boid.x + (Math.cos(boid.rotation) * this.velocity)).mod(window.innerWidth);
+      boid.y = (boid.y + (Math.sin(boid.rotation) * this.velocity)).mod(window.innerHeight);
 
-                if(!seen.includes(coords)) {
-                    seen.push(coords);
-                    result.union(getGrid(coords));
-                }
-            });
-        });
+      this.updateBoidPositionalGrid(boid);
 
-        return Array.from(result);        
-    }
-
-    const grid = Array(gridWidth).fill(null).map(() => Array(gridHeight).fill(null).map(() => new Set()));
-
-    const tris = Array(numTris).fill(null).map(() => createTriangle());
+      const boidsInRange = this.getSearchGrids(boid).reduce((prev, cur) => {
+        return prev.concat([...cur].filter((target) => (this.distance(boid, target) < this.visualRadius && target != boid)));
+      }, []);
 
 
-    tris.forEach((tri, i) => {
-        tri.tint = 0xffffff * Math.random();
-        tri.x = Math.random() * window.innerWidth;
-        tri.y = Math.random() * window.innerHeight;
-        tri.anchor.set(0.5);
-        tri.rotation = Math.random() * 2;
-        tri.scale.set(scale);
-        app.stage.addChild(tri);
+      if (boidsInRange.length) {
 
-        const coords = getGridCoords(tri);
-
-        grid[coords.x][coords.y].add(tri);
+      }
     });
+  }
+}
 
-    const dist = (t1, t2) => {
-        const dx = Math.min(Math.abs(t2.x - t1.x), Math.abs(window.innerWidth - t2.x - t1.x));
-        const dy = Math.min(Math.abs(t2.y - t1.y), Math.abs(window.innerHeight - t2.y - t1.y));
-
-        return dx**2 + dy**2;
-    };
-
-    app.ticker.add(() => {
-        tris.forEach((tri, i) => {
-            const oldCoords = getGridCoords(tri);
-
-            const nearBoids = awareGrids(tri).filter((t2) => dist(tri, t2) < awareRadius);
-
-            tri.tint = nearBoids.reduce((prev, cur) => prev + cur.tint, tri.tint) / (nearBoids.length + 1);
-            
-            const align = nearBoids.reduce((prev, cur) => {
-                return prev += cur.rotation 
-            }, 0) / nearBoids.length;
-
-            if(align > tri.rotation) {
-                tri.rotation += 0.03;
-            } else if (align < tri.rotation) {
-                tri.rotation -= 0.03;
-            }
-
-            const center = 0;
-
-            const newX = tri.x - vel*Math.sin(tri.rotation);
-            const newY = tri.y += vel*Math.cos(tri.rotation);
-
-            tri.x = newX;
-            tri.y = newY;
-
-            if (tri.x < 0) {
-                tri.x = window.innerWidth - Math.abs(tri.x).mod(window.innerWidth);
-            } else if (tri.x > window.innerWidth) {
-                tri.x = tri.x.mod(window.innerWidth);
-            }
-
-            if (tri.y < 0) {
-                tri.y = window.innerHeight - Math.abs(tri.y).mod(window.innerHeight);
-            } else if (tri.y > window.innerHeight) {
-                tri.y = tri.y.mod(window.innerHeight);
-            }
-
-            const coords = getGridCoords(tri);
-
-            if (oldCoords != coords) {
-                getGrid(oldCoords).delete(tri);
-                getGrid(coords).add(tri);
-            }
-        });
-    });
-};
-
-export {
-    app,
-    main
-};
+export default Boids;
